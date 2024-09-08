@@ -110,6 +110,7 @@ notifier = Notifier.new(gmail, "[#{label}] UPS Event")
 status = Open3.popen3("pmset -g pslog") do |stdin, stdout, stderr, wait_thread|
   Thread.new do
     last_event_time = nil
+    last_charge_message_time = nil
     last_percentage = nil
     begin
       while line = stdout.gets
@@ -122,6 +123,7 @@ status = Open3.popen3("pmset -g pslog") do |stdin, stdout, stderr, wait_thread|
             event_time = Time.now
             elapsed = distance_of_time_in_words(last_event_time, event_time)
             last_event_time = event_time
+            last_charge_message_time = nil
 
             notifier.notify("Now drawing from #{matches[1]}.\n#{elapsed} since last event.")
           end
@@ -131,9 +133,10 @@ status = Open3.popen3("pmset -g pslog") do |stdin, stdout, stderr, wait_thread|
         if matches = /\b(\d+)%; discharging; ([\d\:]+) remaining\b/.match(line)
           percentage = matches[1]
           remaining = matches[2]
-          if percentage != last_percentage
+          if percentage != last_percentage && (!last_charge_message_time || Time.now - last_charge_message_time > 60)
             notifier.notify("UPS update: battery at #{percentage}%; #{remaining} remaining")
             last_percentage = percentage
+            last_charge_message_time = Time.now
           end
         end
       end
